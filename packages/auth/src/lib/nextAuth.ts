@@ -22,16 +22,25 @@ import { providers } from "./providers";
 
 export const SET_TYPEBOT_COOKIE_HEADER = "Set-Typebot-Cookie" as const;
 
-const nextAuth = NextAuth((req) => ({
-  adapter: createAuthPrismaAdapter(prisma),
-  secret: env.ENCRYPTION_SECRET,
-  providers,
-  trustHost: true,
-  pages: {
-    signIn: "/signin",
-    newUser: env.NEXT_PUBLIC_ONBOARDING_TYPEBOT_ID ? "/onboarding" : undefined,
-    error: "/signin",
-  },
+const nextAuth = NextAuth((req) => {
+  console.log("NextAuth config:", {
+    hasAdapter: !!createAuthPrismaAdapter(prisma),
+    hasSecret: !!env.ENCRYPTION_SECRET,
+    secretLength: env.ENCRYPTION_SECRET?.length,
+    providersCount: providers.length,
+    providerNames: providers.map((p) => p.id || p.name),
+  });
+  return {
+    adapter: createAuthPrismaAdapter(prisma),
+    secret: env.ENCRYPTION_SECRET,
+    providers,
+    trustHost: true,
+    debug: true,
+    pages: {
+      signIn: "/signin",
+      newUser: env.NEXT_PUBLIC_ONBOARDING_TYPEBOT_ID ? "/onboarding" : undefined,
+      error: "/signin",
+    },
   events: {
     session: async ({ session }) => {
       if (!datesAreOnSameDay(session.user.lastActivityAt, new Date())) {
@@ -114,7 +123,8 @@ const nextAuth = NextAuth((req) => ({
       return await accountHasRequiredOAuthGroups(account);
     },
   },
-}));
+}});
+
 
 const updateCookieIsMerged = ({
   req,
