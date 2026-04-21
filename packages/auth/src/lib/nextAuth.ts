@@ -93,6 +93,7 @@ const nextAuth = NextAuth((req) => {
       user: clientUserSchema.parse(user),
     }),
     signIn: async ({ account, user, email }) => {
+      console.log("SignIn callback:", { account: !!account, user: !!user, email: !!email });
       if (!account) return false;
       const isNewUser = !("createdAt" in user && isDefined(user.createdAt));
       if (user.email && email?.verificationRequest) {
