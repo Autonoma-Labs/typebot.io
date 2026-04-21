@@ -150,6 +150,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.16",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
     "@typebot.io/billing": "workspace:*",
     "@typebot.io/forge": "workspace:*",
     "@typebot.io/forge-repository": "workspace:*",
