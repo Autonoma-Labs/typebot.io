@@ -1,17 +1,61 @@
 import { env } from "@typebot.io/env";
 import { getAtPath } from "@typebot.io/lib/utils";
+import prisma from "@typebot.io/prisma";
 import { userSchema } from "@typebot.io/user/schemas";
+import bcrypt from "bcryptjs";
+import type { Provider } from "next-auth/providers";
+import Credentials from "next-auth/providers/credentials";
 import FacebookProvider from "next-auth/providers/facebook";
 import GitHubProvider from "next-auth/providers/github";
 import GitlabProvider from "next-auth/providers/gitlab";
 import GoogleProvider from "next-auth/providers/google";
-import type { Provider } from "next-auth/providers/index";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { sendVerificationRequest } from "../helpers/sendVerificationRequest";
 
 export const providers: Provider[] = [];
+
+// Email/Password authentication
+providers.push(
+  Credentials({
+    id: "credentials",
+    name: "Email and Password",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" },
+    },
+    async authorize(credentials) {
+      if (!credentials?.email || !credentials?.password) {
+        throw new Error("Email and password are required");
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { email: credentials.email },
+      });
+
+      if (!user || !user.hashedPassword) {
+        throw new Error("Invalid email or password");
+      }
+
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.hashedPassword,
+      );
+
+      if (!isPasswordValid) {
+        throw new Error("Invalid email or password");
+      }
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+      };
+    },
+  }),
+);
 
 if (env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)
   providers.push(

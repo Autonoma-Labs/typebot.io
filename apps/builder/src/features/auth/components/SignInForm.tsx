@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { TextLink } from "@/components/TextLink";
 import { toast } from "@/lib/toast";
 import { DividerWithText } from "./DividerWithText";
+import { EmailPasswordForm } from "./EmailPasswordForm";
 import { SignInError } from "./SignInError";
 import { SocialLoginButtons } from "./SocialLoginButtons";
 
@@ -126,12 +127,23 @@ export const SignInForm = ({ defaultEmail, className }: Props) => {
         </TextLink>
       </p>
     );
+  const hasCredentials = !!providers?.credentials;
+  const hasSocialOrEmail = Object.keys(providers ?? {}).some(
+    (key) => key !== "credentials"
+  );
+
   return (
     <div className={cn("flex flex-col gap-6 w-[330px]", className)}>
       {!isMagicCodeSent && (
         <>
-          <SocialLoginButtons providers={providers} />
-          {providers?.nodemailer && (
+          {hasCredentials && (
+            <>
+              <EmailPasswordForm redirectPath={redirectPath ?? undefined} />
+              {hasSocialOrEmail && <DividerWithText>Or</DividerWithText>}
+            </>
+          )}
+          {hasSocialOrEmail && <SocialLoginButtons providers={providers} />}
+          {providers?.nodemailer && !hasCredentials && (
             <>
               <DividerWithText>{t("auth.orEmailLabel")}</DividerWithText>
               <form
