@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npx nx build builder",
-  "installCommand": "bun install --frozen-lockfile",
+  "buildCommand": "bun install && npx nx build builder",
+  "installCommand": "bun install",
   "framework": "nextjs",
   "outputDirectory": "apps/builder/.next"
 }
