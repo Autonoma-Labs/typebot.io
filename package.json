@@ -48,8 +48,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",
-    "@types/bcryptjs": "^2.4.6",
-    "bcryptjs": "^2.4.3",
     "@effect/language-service": "^0.81.0",
     "@nx/esbuild": "22.5.4",
     "@nx/js": "22.5.4",
