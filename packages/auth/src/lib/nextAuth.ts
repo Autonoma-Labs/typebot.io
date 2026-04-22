@@ -89,13 +89,40 @@ const nextAuth = NextAuth((req) => {
     },
   },
   callbacks: {
-    session: async ({ session, user }) => ({
-      ...session,
-      user: clientUserSchema.parse(user),
-    }),
+    jwt: async ({ token, user, account }) => {
+      // For credentials provider, user info is only available on initial signin
+      if (user) {
+        token.sub = user.id;
+        // Fetch full user data from database for credentials provider
+        if (account?.provider === "credentials" || !account) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+          });
+          if (dbUser) {
+            token.user = clientUserSchema.parse(dbUser);
+          }
+        }
+      }
+      return token;
+    },
+    session: async ({ session, token, user }) => {
+      // For JWT strategy (credentials), use token.user
+      // For database strategy (OAuth), use user from DB
+      if (token?.user) {
+        return {
+          ...session,
+          user: token.user,
+        };
+      }
+      return {
+        ...session,
+        user: clientUserSchema.parse(user),
+      };
+    },
     signIn: async ({ account, user, email }) => {
       console.log("SignIn callback:", { account: !!account, user: !!user, email: !!email });
-      if (!account) return false;
+      // Credentials provider doesn't have an account object, so allow signin without it
+      if (!account && !user.id) return false;
       const isNewUser = !("createdAt" in user && isDefined(user.createdAt));
       if (user.email && email?.verificationRequest) {
         const ip = req
@@ -121,7 +148,8 @@ const nextAuth = NextAuth((req) => {
         if (invitations.length === 0 && workspaceInvitations.length === 0)
           throw new Error("sign-up-disabled");
       }
-      return await accountHasRequiredOAuthGroups(account);
+      // Credentials provider doesn't have an account object
+      return account ? await accountHasRequiredOAuthGroups(account) : true;
     },
   },
 }});
