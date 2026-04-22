@@ -1,4 +1,3 @@
-import { useTranslate } from "@tolgee/react";
 import { Button } from "@typebot.io/ui/components/Button";
 import { Field } from "@typebot.io/ui/components/Field";
 import { Input } from "@typebot.io/ui/components/Input";
@@ -10,7 +9,6 @@ import { toast } from "@/lib/toast";
 type Mode = "signin" | "signup";
 
 export const EmailPasswordForm = ({ redirectPath }: { redirectPath?: string }) => {
-  const { t } = useTranslate();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
