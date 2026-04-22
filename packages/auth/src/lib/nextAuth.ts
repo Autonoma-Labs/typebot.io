@@ -28,6 +28,7 @@ const nextAuth = NextAuth((req) => {
     hasSecret: !!env.ENCRYPTION_SECRET,
     secretLength: env.ENCRYPTION_SECRET?.length,
     providersCount: providers.length,
+    timestamp: new Date().toISOString(),
   });
   return {
     adapter: createAuthPrismaAdapter(prisma),
