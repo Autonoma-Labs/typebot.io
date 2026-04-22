@@ -24,6 +24,7 @@ export const userSchema = z.object({
   email: z.string(),
   emailVerified: z.date().nullable(),
   image: z.string().nullable(),
+  hashedPassword: z.string().nullable(),
   company: z.string().nullable(),
   onboardingCategories: z.array(z.string()),
   referral: z.string().nullable(),
