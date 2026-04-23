@@ -5,3 +5,10 @@ declare module "next-auth" {
     user: ClientUser;
   }
 }
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    user?: ClientUser;
+    lastActivityAt?: string;
+  }
+}
