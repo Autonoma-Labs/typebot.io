@@ -386,7 +386,9 @@ const handlerConfig: HandlerConfig = {
     // tolerated since the DB write precedes the mail send.
     Invitation: defineFactory({
       create: async (data, ctx) => {
-        const typebotId = String(data.typebotId);
+        const typebotId = resolveParentId(data.typebotId, ctx.refs, "Typebot");
+        if (!typebotId)
+          throw new Error("Invitation factory: no typebotId available.");
         const email = String(data.email);
         const type = data.type ? (String(data.type) as never) : ("READ" as never);
         const inviter = await findTypebotAdmin(typebotId);
@@ -433,8 +435,16 @@ const handlerConfig: HandlerConfig = {
     // upserts the GUEST MemberInWorkspace inline.
     CollaboratorsOnTypebots: defineFactory({
       create: async (data, ctx) => {
-        const typebotId = String(data.typebotId);
-        const userId = String(data.userId);
+        const typebotId = resolveParentId(data.typebotId, ctx.refs, "Typebot");
+        if (!typebotId)
+          throw new Error(
+            "CollaboratorsOnTypebots factory: no typebotId available.",
+          );
+        const userId = resolveParentId(data.userId, ctx.refs, "User");
+        if (!userId)
+          throw new Error(
+            "CollaboratorsOnTypebots factory: no userId available.",
+          );
         const type = data.type ? (String(data.type) as never) : ("READ" as never);
         const collaborator = refLookup(ctx.refs, "User", userId);
         const collaboratorEmail = collaborator?.email ? String(collaborator.email) : null;
@@ -1108,32 +1118,41 @@ const handlerConfig: HandlerConfig = {
 // document order in `autonoma/scenarios.md`, which is already
 // topologically valid.
 const CREATE_MODEL_ORDER: readonly string[] = [
+  // roots (no parents or self-seeding via signup)
   "User",
   "Workspace",
+  // direct children of User / Workspace
+  "Account",
+  "Session",
   "MemberInWorkspace",
   "WorkspaceInvitation",
-  "Invitation",
   "DashboardFolder",
   "CustomDomain",
-  "Typebot",
-  "PublicTypebot",
-  "CollaboratorsOnTypebots",
   "Credentials",
-  "UserCredentials",
   "ApiToken",
   "ThemeTemplate",
   "Space",
   "SuppressedEmail",
   "VerificationToken",
-  "Account",
-  "Session",
+  // depends on Workspace (and optionally DashboardFolder/CustomDomain)
+  "Typebot",
+  // depends on Typebot
+  "PublicTypebot",
+  "Invitation",
+  "CollaboratorsOnTypebots",
+  // depends on User + Credentials
+  "UserCredentials",
+  // depends on Typebot
   "Result",
+  // depends on Result
   "AnswerV2",
   "Log",
   "VisitedEdge",
   "SetVariableHistoryItem",
-  "ChatSession",
+  // depends on PublicTypebot
   "RuntimeMediaIdCache",
+  // independent
+  "ChatSession",
   "Coupon",
 ];
 
