@@ -30,7 +30,7 @@ import { upsertSession } from "@typebot.io/chat-session/queries/upsertSession";
 import { env } from "@typebot.io/env";
 import prisma from "@typebot.io/prisma";
 import { createCoupon } from "@typebot.io/prisma/admin/createCoupon";
-import { WorkspaceId } from "@typebot.io/shared-core/domain";
+import { SpaceCreateInputSchema } from "@typebot.io/spaces/application/SpacesRepo";
 import { createSpaceForFactory } from "@typebot.io/spaces/drivers/factory/createSpaceForFactory";
 import { Schema } from "effect";
 import {
@@ -669,14 +669,12 @@ export const POST = createHandler({
     // but keep the repo's real Prisma write + unique-constraint mapping.
     Space: defineFactory({
       create: async (data) => {
-        const workspaceId = Schema.decodeSync(WorkspaceId)(
-          String(data.workspaceId),
-        );
-        const space = await createSpaceForFactory({
-          workspaceId,
+        const input = Schema.decodeSync(SpaceCreateInputSchema)({
+          workspaceId: String(data.workspaceId),
           name: String(data.name),
           icon: data.icon ? String(data.icon) : undefined,
         });
+        const space = await createSpaceForFactory(input);
         return { id: space.id };
       },
     }),
@@ -742,7 +740,9 @@ export const POST = createHandler({
           access_token: data.access_token ? String(data.access_token) : undefined,
           expires_at:
             data.expires_at !== undefined ? Number(data.expires_at) : undefined,
-          token_type: data.token_type ? String(data.token_type) : undefined,
+          token_type: data.token_type
+            ? (String(data.token_type).toLowerCase() as Lowercase<string>)
+            : undefined,
           scope: data.scope ? String(data.scope) : undefined,
           id_token: data.id_token ? String(data.id_token) : undefined,
           session_state: data.session_state ? String(data.session_state) : undefined,
@@ -947,6 +947,10 @@ export const POST = createHandler({
     }),
 
     // RuntimeMediaIdCache — Branch 2.
+    // The model has no scalar primary key; the table is keyed on the
+    // composite @@unique([publicTypebotId, provider, url]). Factories must
+    // still return a stable string id for the SDK refs map, so we
+    // synthesise one from the composite tuple.
     RuntimeMediaIdCache: defineFactory({
       create: async (data) => {
         const row = await insertMediaIdToCache({
@@ -956,7 +960,9 @@ export const POST = createHandler({
           publicTypebotId: String(data.publicTypebotId),
           expiresAt: data.expiresAt ? new Date(String(data.expiresAt)) : undefined,
         });
-        return { id: row.id };
+        return {
+          id: `${row.publicTypebotId}:${row.provider}:${row.url}`,
+        };
       },
     }),
 

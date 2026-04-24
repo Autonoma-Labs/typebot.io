@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "exports": {
+    "./application/SpacesRepo": "./src/application/SpacesRepo.ts",
     "./domain": "./src/domain/Space.ts",
     "./orpc/router": "./src/drivers/orpc/router.ts",
     "./react/*": "./src/drivers/react/*.tsx",
