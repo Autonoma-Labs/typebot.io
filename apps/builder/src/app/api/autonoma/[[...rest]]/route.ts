@@ -102,11 +102,16 @@ const wrapPrisma = (client: {
 });
 const autonomaExecutor = prismaExecutor(wrapPrisma(prisma));
 
+// Vercel preview deployments build with NODE_ENV=production, which trips the
+// SDK's production guard. We opt-in via AUTONOMA_ENABLED so the guard still
+// fires for real production (where the env var is absent), but preview and
+// staging environments can host the factory endpoint.
 export const POST = createHandler({
   executor: autonomaExecutor,
   scopeField: "workspaceId",
   sharedSecret: process.env.AUTONOMA_SHARED_SECRET!,
   signingSecret: process.env.AUTONOMA_SIGNING_SECRET!,
+  allowProduction: process.env.AUTONOMA_ENABLED === "true",
 
   factories: {
     // User — Branch 1 (extraction already completed).
