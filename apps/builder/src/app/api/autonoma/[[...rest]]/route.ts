@@ -30,7 +30,9 @@ import { upsertSession } from "@typebot.io/chat-session/queries/upsertSession";
 import { env } from "@typebot.io/env";
 import prisma from "@typebot.io/prisma";
 import { createCoupon } from "@typebot.io/prisma/admin/createCoupon";
+import { WorkspaceId } from "@typebot.io/shared-core/domain";
 import { createSpaceForFactory } from "@typebot.io/spaces/drivers/factory/createSpaceForFactory";
+import { Schema } from "effect";
 import {
   SignupError,
   createUserWithDefaultWorkspace,
@@ -667,7 +669,9 @@ export const POST = createHandler({
     // but keep the repo's real Prisma write + unique-constraint mapping.
     Space: defineFactory({
       create: async (data) => {
-        const workspaceId = String(data.workspaceId);
+        const workspaceId = Schema.decodeSync(WorkspaceId)(
+          String(data.workspaceId),
+        );
         const space = await createSpaceForFactory({
           workspaceId,
           name: String(data.name),
