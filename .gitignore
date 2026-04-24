@@ -85,3 +85,6 @@ content-collections.d.ts.map
 content-collections.d.ts
 **/next-env.d.ts
 .env*.local
+
+# Autonoma test planner generated artifacts (repo root only)
+/autonoma/

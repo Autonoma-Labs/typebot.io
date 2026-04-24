@@ -1,7 +1,6 @@
-import prisma from "@typebot.io/prisma";
-import { normalizeEmail } from "@typebot.io/user/normalizeEmail";
 import { verifyUnsubscribeToken } from "@typebot.io/user/verifyUnsubscribeToken";
 import { z } from "zod";
+import { suppressEmail } from "./suppressEmail";
 
 export const unsubscribeEmailInputSchema = z.object({
   query: z
@@ -26,16 +25,4 @@ export const handleUnsubscribeEmail = async ({
   await suppressEmail(email);
 
   return { message: "Unsubscribed" };
-};
-
-const suppressEmail = async (email: string) => {
-  const normalized = normalizeEmail(email);
-  if (!normalized) return false;
-  const now = new Date();
-  await prisma.suppressedEmail.upsert({
-    where: { email: normalized },
-    update: { suppressedAt: now },
-    create: { email: normalized, suppressedAt: now },
-  });
-  return true;
 };
