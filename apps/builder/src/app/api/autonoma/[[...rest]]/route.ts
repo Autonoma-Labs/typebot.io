@@ -14,9 +14,14 @@
 //
 // See autonoma/.factory-plan.md for the per-model decision record.
 
-import { defineFactory } from "@autonoma-ai/sdk";
+import {
+  defineFactory,
+  type HandlerConfig,
+  handleRequest,
+  signBody,
+  verifySignature,
+} from "@autonoma-ai/sdk";
 import { prismaExecutor } from "@autonoma-ai/sdk-prisma";
-import { createHandler } from "@autonoma-ai/server-web";
 import { encode as encodeNextAuthJwt } from "@auth/core/jwt";
 import { createId } from "@paralleldrive/cuid2";
 import { createAuthPrismaAdapter } from "@typebot.io/auth/helpers/createAuthPrismaAdapter";
@@ -123,7 +128,7 @@ const autonomaExecutor = prismaExecutor(wrapPrisma(prisma));
 // SDK's production guard. We opt-in via AUTONOMA_ENABLED so the guard still
 // fires for real production (where the env var is absent), but preview and
 // staging environments can host the factory endpoint.
-export const POST = createHandler({
+const handlerConfig: HandlerConfig = {
   executor: autonomaExecutor,
   scopeField: "workspaceId",
   sharedSecret: process.env.AUTONOMA_SHARED_SECRET!,
@@ -1087,7 +1092,112 @@ export const POST = createHandler({
       },
     };
   },
-});
+};
+
+// The Autonoma dashboard persists recipe JSON in Postgres `jsonb`, which
+// normalises key order. When the dashboard reconstructs the `create`
+// payload from jsonb and sends it to this webhook, child models (e.g.
+// `Log`) end up positioned before their parents (`Result`). The SDK walks
+// `create` keys in insertion order; when a child is walked first, its
+// `_ref` cannot resolve yet and the field drops to `deferredUpdates` —
+// which run AFTER our factory is called, so the factory sees
+// `data.resultId === undefined` and the row is written with a NULL FK.
+//
+// We mirror the topological order the SDK expects: parents before
+// children. The order is derived by walking the original scenarios
+// document order in `autonoma/scenarios.md`, which is already
+// topologically valid.
+const CREATE_MODEL_ORDER: readonly string[] = [
+  "User",
+  "Workspace",
+  "MemberInWorkspace",
+  "WorkspaceInvitation",
+  "Invitation",
+  "DashboardFolder",
+  "CustomDomain",
+  "Typebot",
+  "PublicTypebot",
+  "CollaboratorsOnTypebots",
+  "Credentials",
+  "UserCredentials",
+  "ApiToken",
+  "ThemeTemplate",
+  "Space",
+  "SuppressedEmail",
+  "VerificationToken",
+  "Account",
+  "Session",
+  "Result",
+  "AnswerV2",
+  "Log",
+  "VisitedEdge",
+  "SetVariableHistoryItem",
+  "ChatSession",
+  "RuntimeMediaIdCache",
+  "Coupon",
+];
+
+const reorderCreate = (create: Record<string, unknown>): Record<string, unknown> => {
+  const ordered: Record<string, unknown> = {};
+  for (const model of CREATE_MODEL_ORDER) {
+    if (model in create) ordered[model] = create[model];
+  }
+  for (const [model, value] of Object.entries(create)) {
+    if (!(model in ordered)) ordered[model] = value;
+  }
+  return ordered;
+};
+
+export const POST = async (req: Request): Promise<Response> => {
+  const rawBody = await req.text();
+  const headers: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    headers[key.toLowerCase()] = value;
+  });
+
+  // The dashboard scrambles `create` key order via jsonb serialisation.
+  // Re-order keys to a topologically valid sequence and re-sign, so the
+  // SDK's HMAC verification still passes over the mutated body. We verify
+  // the caller's signature against the ORIGINAL body first so a request
+  // with a tampered `create` key order cannot slip through unsigned.
+  let effectiveBody = rawBody;
+  let effectiveSignature = headers["x-signature"] ?? "";
+  const incomingSignature = effectiveSignature;
+  if (
+    incomingSignature &&
+    verifySignature(rawBody, incomingSignature, handlerConfig.sharedSecret)
+  ) {
+    try {
+      const parsed = JSON.parse(rawBody);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        parsed.action === "up" &&
+        parsed.create &&
+        typeof parsed.create === "object" &&
+        !Array.isArray(parsed.create)
+      ) {
+        parsed.create = reorderCreate(parsed.create as Record<string, unknown>);
+        effectiveBody = JSON.stringify(parsed);
+        effectiveSignature = signBody(effectiveBody, handlerConfig.sharedSecret);
+      }
+    } catch {
+      // fall through — handleRequest will reject invalid JSON itself
+    }
+  }
+
+  const res = await handleRequest(
+    { ...handlerConfig, sdk: { server: "web" } },
+    {
+      body: effectiveBody,
+      headers: { ...headers, "x-signature": effectiveSignature },
+    },
+  );
+  return new Response(JSON.stringify(res.body), {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  });
+};
 
 // --- helpers ---------------------------------------------------------------
 
