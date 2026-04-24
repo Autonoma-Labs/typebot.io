@@ -65,6 +65,23 @@ const refLookup = (
   id: string,
 ) => refs[model]?.find((record) => record.id === id);
 
+// Resolve a parent FK that may arrive as undefined when a caller (e.g. the
+// Autonoma dashboard dry-run) strips _ref objects before sending the create
+// tree. Falls back to the most-recently-created row of the parent model in
+// ctx.refs so child rows still land against a real parent.
+const resolveParentId = (
+  raw: unknown,
+  refs: Record<string, Record<string, unknown>[]>,
+  parentModel: string,
+): string | undefined => {
+  if (raw !== undefined && raw !== null) {
+    const str = String(raw);
+    if (str && str !== "undefined") return str;
+  }
+  const fallback = refs[parentModel]?.at(-1)?.id;
+  return fallback ? String(fallback) : undefined;
+};
+
 // The Autonoma SDK's PrismaClient shape only requires `$queryRawUnsafe`
 // and `$transaction`. Prisma v7's full typed client is wider than that
 // minimal interface; we bind through a local wrapper that matches the SDK
@@ -824,8 +841,10 @@ export const POST = createHandler({
 
     // AnswerV2 — Branch 2.
     AnswerV2: defineFactory({
-      create: async (data) => {
-        const resultId = String(data.resultId);
+      create: async (data, ctx) => {
+        const resultId = resolveParentId(data.resultId, ctx.refs, "Result");
+        if (!resultId)
+          throw new Error("AnswerV2 factory: no resultId available.");
         await saveAnswer({
           answer: {
             blockId: String(data.blockId),
@@ -853,11 +872,15 @@ export const POST = createHandler({
 
     // Log — Branch 2.
     Log: defineFactory({
-      create: async (data) => {
-        const resultId = String(data.resultId);
-        const status = data.status
-          ? (String(data.status) as "error" | "success" | "info")
-          : "info";
+      create: async (data, ctx) => {
+        const resultId = resolveParentId(data.resultId, ctx.refs, "Result");
+        if (!resultId)
+          throw new Error("Log factory: no resultId available.");
+        const rawStatus = data.status ? String(data.status) : "info";
+        const status =
+          rawStatus === "error" || rawStatus === "success" || rawStatus === "info"
+            ? rawStatus
+            : "info";
         const row = await saveLog({
           status,
           resultId,
@@ -878,8 +901,10 @@ export const POST = createHandler({
     // Factory writes via the real helper then fetches the row back to
     // return its composite key for teardown.
     VisitedEdge: defineFactory({
-      create: async (data) => {
-        const resultId = String(data.resultId);
+      create: async (data, ctx) => {
+        const resultId = resolveParentId(data.resultId, ctx.refs, "Result");
+        if (!resultId)
+          throw new Error("VisitedEdge factory: no resultId available.");
         const edgeId = String(data.edgeId);
         const index = Number(data.index ?? 0);
         await saveVisitedEdges([{ resultId, edgeId, index } as never]);
@@ -903,8 +928,12 @@ export const POST = createHandler({
 
     // SetVariableHistoryItem — Branch 2.
     SetVariableHistoryItem: defineFactory({
-      create: async (data) => {
-        const resultId = String(data.resultId);
+      create: async (data, ctx) => {
+        const resultId = resolveParentId(data.resultId, ctx.refs, "Result");
+        if (!resultId)
+          throw new Error(
+            "SetVariableHistoryItem factory: no resultId available.",
+          );
         const blockId = String(data.blockId);
         const variableId = String(data.variableId);
         const index = Number(data.index ?? 0);
